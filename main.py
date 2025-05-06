@@ -115,7 +115,11 @@ else:
     placeholder = st.empty()
 
     for i, ex in enumerate(allenamenti[sel], start=1):
-        rec = int(ex.get('Recupero') or 0)
+
+        try:
+            rec = int(ex.get('Recupero') or 0)
+        except Exception:
+            rec = 0
         with st.expander(f"{i}. {ex['Esercizio']}"):
             st.write(f"**Serie:** {ex['Serie']}  •  **Ripetizioni:** {ex['Ripetizioni']}")
 
