@@ -1,7 +1,9 @@
+import asyncio
+
 import streamlit as st
 import pandas as pd
 import time
-
+from streamlit_player import st_player
 # Carica il file Excel
 @st.cache_data
 def load_excel():
@@ -97,6 +99,8 @@ def extract_workouts(df):
 
     return allenamenti
 
+
+
 allenamenti = extract_workouts(df)
 
 # Streamlit UI
@@ -107,32 +111,66 @@ else:
     sel = st.selectbox("Seleziona allenamento", list(allenamenti.keys()))
     st.subheader(sel)
 
-    # Visualizza esercizi con timer di recupero inline
+    # Placeholder generico
+    placeholder = st.empty()
+
     for i, ex in enumerate(allenamenti[sel], start=1):
-        try:
-            rec = int(ex.get('Recupero', None) or 0)
-        except Exception:
-            rec = 0
+        rec = int(ex.get('Recupero') or 0)
         with st.expander(f"{i}. {ex['Esercizio']}"):
-            st.write(f"Serie: {ex['Serie']} - Ripetizioni: {ex['Ripetizioni']}")
-            if ex['Video']:
-                st.markdown(f"[Video]({ex['Video']})")
-            st.write(f"Note: {ex['Note']}")
-            st.write(f"Recupero: {rec}s")
-            st.write(f"Note Extra: {ex['Note Extra']}")
-            st.write(f"Progressione: {ex['Progressione']}")
+            st.write(f"**Serie:** {ex['Serie']}  •  **Ripetizioni:** {ex['Ripetizioni']}")
 
-            # Usa un solo placeholder per tutti gli elementi del timer
-            timer_placeholder = st.empty()
-            # Avvia il countdown in modo bloccante, ma all'interno dello stesso placeholder
-            if st.button("▶️ Avvia Recupero", key=f"timer_{i}"):
-                for sec in range(rec, -1, -1):
-                    # Aggiorna timer e barra di progresso
-                    timer_placeholder.metric(label="Tempo rimanente", value=f"{sec}s")
-                    time.sleep(1)
-                timer_placeholder.success("✅ Recupero completato!")
+            # Gestione video con embed
+            video_url = ex.get('Video') or ''
+            if video_url:
+                embed_url = (
+                    video_url
+                    .replace('youtube.com/shorts/', 'youtube.com/embed/')
+                    .replace('youtu.be/', 'www.youtube.com/embed/')
+                )
+                st.video(embed_url)
 
+            st.write(f"**Note:** {ex['Note']}")
+            st.write(f"**Recupero:** {rec}s  •  **Note Extra:** {ex['Note Extra']}")
+            st.write(f"**Progressione:** {ex['Progressione']}")
 
+            # Timer inline con JavaScript per evitare blocking e aggiungere Stop
+            import streamlit.components.v1 as components
+            timer_id = f"timer_{i}"
+            start_btn = st.button("▶️ Avvia Recupero", key=f"start_{i}")
+            stop_btn = st.button("⏹️ Ferma Recupero", key=f"stop_{i}")
+            # JS snippet con start/stop e stile
+            js = f'''
+            <div id="{timer_id}" style="font-size:24px; font-weight:bold; color:white;">Recupero: {rec}s</div>
+            <script>
+            var total_{timer_id} = {rec};
+            var interval_{timer_id};
+            function start_{timer_id}() {{
+              if (interval_{timer_id}) return;
+              interval_{timer_id} = setInterval(function() {{
+                if (total_{timer_id} <= 0) {{
+                  document.getElementById('{timer_id}').innerText = '✅ Recupero completato!';
+                  clearInterval(interval_{timer_id});
+                  interval_{timer_id} = null;
+                }} else {{
+                  document.getElementById('{timer_id}').innerText = 'Recupero: ' + total_{timer_id} + 's';
+                  total_{timer_id}--;
+                }}
+              }}, 1000);
+            }}
+            function stop_{timer_id}() {{
+              if (interval_{timer_id}) {{ clearInterval(interval_{timer_id}); interval_{timer_id} = null; }}
+            }}
+            </script>
+            '''
+            if start_btn:
+                components.html(js + f"<script>start_{timer_id}()</script>", height=80)
+            elif stop_btn:
+                components.html(f"<script>stop_{timer_id}()</script>", height=10)
+            else:
+                components.html(js, height=10)
+                st.write("")
+
+            # Input pesi e serie
             st.number_input("Peso (kg)", key=f"peso_{i}", step=0.5)
             st.number_input("Serie fatte", key=f"serie_{i}", min_value=0)
             st.write("---")
