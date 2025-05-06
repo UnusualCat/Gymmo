@@ -109,7 +109,10 @@ else:
 
     # Visualizza esercizi con timer di recupero inline
     for i, ex in enumerate(allenamenti[sel], start=1):
-        rec = int(ex.get('Recupero', None) or 0)
+        try:
+            rec = int(ex.get('Recupero', None) or 0)
+        except Exception:
+            rec = 60
         with st.expander(f"{i}. {ex['Esercizio']}"):
             st.write(f"Serie: {ex['Serie']} - Ripetizioni: {ex['Ripetizioni']}")
             if ex['Video']:
