@@ -108,73 +108,86 @@ st.title("📋 Programma Allenamento Personalizzato")
 if not allenamenti:
     st.warning("Nessun allenamento valido trovato.")
 else:
-    sel = st.selectbox("Seleziona allenamento", list(allenamenti.keys()))
-    st.subheader(sel)
+    settimane = {}
+    for key in allenamenti.keys():
+        # Assumendo formato "Settimana 1 - Giorno 2"
+        if "Settimana" in key and "Giorno" in key:
+            parts = key.split(" - ")
+            settimana = parts[0]  # "Settimana 1"
+            giorno = parts[1]  # "Giorno 2"
+            settimane.setdefault(settimana, {})[giorno] = allenamenti[key]
 
-    # Placeholder generico
+    # Seleziona la settimana
+    settimana_sel = st.selectbox("Scegli una settimana", list(settimane.keys()))
+
+    # Seleziona il giorno della settimana scelta
+    giorno_sel = st.selectbox("Scegli un giorno", list(settimane[settimana_sel].keys()))
+
+    # Mostra gli esercizi del giorno selezionato
+    st.subheader(f"{settimana_sel} - {giorno_sel}")
     placeholder = st.empty()
 
-    for i, ex in enumerate(allenamenti[sel], start=1):
+    for i, ex in enumerate(settimane[settimana_sel][giorno_sel], start=1):
 
-        try:
-            rec = int(ex.get('Recupero') or 0)
-        except Exception:
-            rec = 0
-        with st.expander(f"{i}. {ex['Esercizio']}"):
-            st.write(f"**Serie:** {ex['Serie']}  •  **Ripetizioni:** {ex['Ripetizioni']}")
+            try:
+                rec = int(ex.get('Recupero') or 0)
+            except Exception:
+                rec = 0
+            with st.expander(f"{i}. {ex['Esercizio']}"):
+                st.write(f"**Serie:** {ex['Serie']}  •  **Ripetizioni:** {ex['Ripetizioni']}")
 
-            # Gestione video con embed
-            video_url = ex.get('Video') or ''
-            if video_url:
-                embed_url = (
-                    video_url
-                    .replace('youtube.com/shorts/', 'youtube.com/embed/')
-                    .replace('youtu.be/', 'www.youtube.com/embed/')
-                )
-                st.video(embed_url)
+                # Gestione video con embed
+                video_url = ex.get('Video') or ''
+                if video_url:
+                    embed_url = (
+                        video_url
+                        .replace('youtube.com/shorts/', 'youtube.com/embed/')
+                        .replace('youtu.be/', 'www.youtube.com/embed/')
+                    )
+                    st.video(embed_url)
 
-            st.write(f"**Note:** {ex['Note']}")
-            st.write(f"**Recupero:** {rec}s  •  **Note Extra:** {ex['Note Extra']}")
-            st.write(f"**Progressione:** {ex['Progressione']}")
+                st.write(f"**Note:** {ex['Note']}")
+                st.write(f"**Recupero:** {rec}s  •  **Note Extra:** {ex['Note Extra']}")
+                st.write(f"**Progressione:** {ex['Progressione']}")
 
-            # Timer inline con JavaScript per evitare blocking e aggiungere Stop
-            import streamlit.components.v1 as components
-            timer_id = f"timer_{i}"
-            start_btn = st.button("▶️ Avvia Recupero", key=f"start_{i}")
-            stop_btn = st.button("⏹️ Ferma Recupero", key=f"stop_{i}")
-            # JS snippet con start/stop e stile
-            js = f'''
-            <div id="{timer_id}" style="font-size:24px; font-weight:bold; color:white;">Recupero: {rec}s</div>
-            <script>
-            var total_{timer_id} = {rec};
-            var interval_{timer_id};
-            function start_{timer_id}() {{
-              if (interval_{timer_id}) return;
-              interval_{timer_id} = setInterval(function() {{
-                if (total_{timer_id} <= 0) {{
-                  document.getElementById('{timer_id}').innerText = '✅ Recupero completato!';
-                  clearInterval(interval_{timer_id});
-                  interval_{timer_id} = null;
-                }} else {{
-                  document.getElementById('{timer_id}').innerText = 'Recupero: ' + total_{timer_id} + 's';
-                  total_{timer_id}--;
+                # Timer inline con JavaScript per evitare blocking e aggiungere Stop
+                import streamlit.components.v1 as components
+                timer_id = f"timer_{i}"
+                start_btn = st.button("▶️ Avvia Recupero", key=f"start_{i}")
+                stop_btn = st.button("⏹️ Ferma Recupero", key=f"stop_{i}")
+                # JS snippet con start/stop e stile
+                js = f'''
+                <div id="{timer_id}" style="font-size:24px; font-weight:bold; color:white;">Recupero: {rec}s</div>
+                <script>
+                var total_{timer_id} = {rec};
+                var interval_{timer_id};
+                function start_{timer_id}() {{
+                  if (interval_{timer_id}) return;
+                  interval_{timer_id} = setInterval(function() {{
+                    if (total_{timer_id} <= 0) {{
+                      document.getElementById('{timer_id}').innerText = '✅ Recupero completato!';
+                      clearInterval(interval_{timer_id});
+                      interval_{timer_id} = null;
+                    }} else {{
+                      document.getElementById('{timer_id}').innerText = 'Recupero: ' + total_{timer_id} + 's';
+                      total_{timer_id}--;
+                    }}
+                  }}, 1000);
                 }}
-              }}, 1000);
-            }}
-            function stop_{timer_id}() {{
-              if (interval_{timer_id}) {{ clearInterval(interval_{timer_id}); interval_{timer_id} = null; }}
-            }}
-            </script>
-            '''
-            if start_btn:
-                components.html(js + f"<script>start_{timer_id}()</script>", height=80)
-            elif stop_btn:
-                components.html(f"<script>stop_{timer_id}()</script>", height=10)
-            else:
-                components.html(js, height=10)
-                st.write("")
+                function stop_{timer_id}() {{
+                  if (interval_{timer_id}) {{ clearInterval(interval_{timer_id}); interval_{timer_id} = null; }}
+                }}
+                </script>
+                '''
+                if start_btn:
+                    components.html(js + f"<script>start_{timer_id}()</script>", height=80)
+                elif stop_btn:
+                    components.html(f"<script>stop_{timer_id}()</script>", height=10)
+                else:
+                    components.html(js, height=10)
+                    st.write("")
 
-            # Input pesi e serie
-            st.number_input("Peso (kg)", key=f"peso_{i}", step=0.5)
-            st.number_input("Serie fatte", key=f"serie_{i}", min_value=0)
-            st.write("---")
+                # Input pesi e serie
+                st.number_input("Peso (kg)", key=f"peso_{i}", step=0.5)
+                st.number_input("Serie fatte", key=f"serie_{i}", min_value=0)
+                st.write("---")
