@@ -112,7 +112,7 @@ else:
         try:
             rec = int(ex.get('Recupero', None) or 0)
         except Exception:
-            rec = 60
+            rec = 0
         with st.expander(f"{i}. {ex['Esercizio']}"):
             st.write(f"Serie: {ex['Serie']} - Ripetizioni: {ex['Ripetizioni']}")
             if ex['Video']:
