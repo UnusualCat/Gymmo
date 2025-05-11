@@ -89,6 +89,21 @@ def extract_workouts(df):
     return allenamenti
 
 allenamenti = extract_workouts(df)
+if "timer_started" not in st.session_state:
+    st.session_state.timer_started = False
+    st.session_state.start_time = 0
 
+col1, col2 = st.columns(2)
+with col1:
+    if st.button("▶️ Avvia Timer Recupero"):
+        st.session_state.timer_started = True
+        st.session_state.start_time = time.time()
+with col2:
+    if st.button("⏹️ Ferma Timer"):
+        st.session_state.timer_started = False
+
+if st.session_state.timer_started:
+    elapsed = int(time.time() - st.session_state.start_time)
+    st.info(f"⏱ Tempo trascorso: {elapsed} secondi")
 for k, v in allenamenti.items():
     print(k,v)

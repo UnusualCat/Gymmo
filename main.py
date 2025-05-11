@@ -4,6 +4,8 @@ import streamlit as st
 import pandas as pd
 import time
 from streamlit_player import st_player
+
+
 # Carica il file Excel
 @st.cache_data
 def load_excel():
@@ -11,14 +13,17 @@ def load_excel():
     df = pd.read_excel(file_path, sheet_name="Programmi", header=None)
     return df
 
+
 df = load_excel()
+
 
 def is_valid_exercise(ex):
     for k, v in ex.items():
         if v is not None and pd.notna(v):
             txt = str(v).strip().lower()
 
-            if txt and txt not in ["0", "nan", "esercizio", "serie", "ripetizioni", "recupero", "note esercizio", "note extra", "video", "note progressione"]:
+            if txt and txt not in ["0", "nan", "esercizio", "serie", "ripetizioni", "recupero", "note esercizio",
+                                   "note extra", "video", "note progressione"]:
                 return True
     return False
 
@@ -53,7 +58,7 @@ def extract_workouts(df):
             cell = df.iat[i, col_idx]
             cell_val = str(cell).strip() if pd.notna(cell) else ""
 
-            if len(cell_val)<5 and cell_val.strip() not in ["", "0", "nan"]:
+            if len(cell_val) < 5 and cell_val.strip() not in ["", "0", "nan"]:
                 empty_rows += 1
             else:
                 empty_rows = 0  # reset
@@ -100,7 +105,6 @@ def extract_workouts(df):
     return allenamenti
 
 
-
 allenamenti = extract_workouts(df)
 
 # Streamlit UI
@@ -109,85 +113,73 @@ if not allenamenti:
     st.warning("Nessun allenamento valido trovato.")
 else:
     settimane = {}
-    for key in allenamenti.keys():
-        # Assumendo formato "Settimana 1 - Giorno 2"
-        if "Settimana" in key and "Giorno" in key:
-            parts = key.split(" - ")
-            settimana = parts[0]  # "Settimana 1"
-            giorno = parts[1]  # "Giorno 2"
-            settimane.setdefault(settimana, {})[giorno] = allenamenti[key]
+    for key, exs in allenamenti.items():
+        sett, g = key.split(' - ')
+        settimane.setdefault(sett, {})[g] = exs
 
-    # Seleziona la settimana
-    settimana_sel = st.selectbox("Scegli una settimana", list(settimane.keys()))
+    # Selezione settimana e giorno
+    settimana_sel = st.selectbox("Scegli la settimana", list(settimane.keys()))
+    giorno_sel = st.selectbox("Scegli il giorno", list(settimane[settimana_sel].keys()))
+    esercizi = settimane[settimana_sel][giorno_sel]
 
-    # Seleziona il giorno della settimana scelta
-    giorno_sel = st.selectbox("Scegli un giorno", list(settimane[settimana_sel].keys()))
+    # Inizializza completamenti
+    allen_id = f"{settimana_sel}-{giorno_sel}"
+    if allen_id not in st.session_state:
+        st.session_state[allen_id] = set()
 
-    # Mostra gli esercizi del giorno selezionato
-    st.subheader(f"{settimana_sel} - {giorno_sel}")
-    placeholder = st.empty()
+    # Barra di progresso
+    completati = st.session_state[allen_id]
+    total = len(esercizi)
+    done = len(completati)
+    st.progress(done / total)
+    st.write(f"{done} di {total} esercizi completati")
 
-    for i, ex in enumerate(settimane[settimana_sel][giorno_sel], start=1):
+    # Lista esercizi con bottone completamento
+    for i, ex in enumerate(esercizi, start=1):
+        ex_key = f"{allen_id}-{i}"
+        if ex_key not in st.session_state:
+            st.session_state[ex_key] = False
+        try:
+            rec = int(ex.get('Recupero') or 0)
+        except Exception:
+            rec = 0
+        testo = f"{ex['Esercizio']}"
+        if st.session_state[ex_key]: testo = f":green-background[{ex['Esercizio']}]"
 
-            try:
-                rec = int(ex.get('Recupero') or 0)
-            except Exception:
-                rec = 0
-            with st.expander(f"{i}. {ex['Esercizio']}"):
-                st.write(f"**Serie:** {ex['Serie']}  •  **Ripetizioni:** {ex['Ripetizioni']}")
+        with st.expander(testo):
+            st.write(f"**Serie:** {ex['Serie']}  •  **Ripetizioni:** {ex['Ripetizioni']}")
 
-                # Gestione video con embed
-                video_url = ex.get('Video') or ''
-                if video_url:
-                    embed_url = (
-                        video_url
-                        .replace('youtube.com/shorts/', 'youtube.com/embed/')
-                        .replace('youtu.be/', 'www.youtube.com/embed/')
-                    )
-                    st.video(embed_url)
+            # Gestione video con embed
+            video_url = ex.get('Video') or ''
+            if video_url:
+                embed_url = (
+                    video_url
+                    .replace('youtube.com/shorts/', 'youtube.com/embed/')
+                    .replace('youtu.be/', 'www.youtube.com/embed/')
+                )
+                st.video(embed_url)
 
-                st.write(f"**Note:** {ex['Note']}")
-                st.write(f"**Recupero:** {rec}s  •  **Note Extra:** {ex['Note Extra']}")
-                st.write(f"**Progressione:** {ex['Progressione']}")
+            st.write(f"**Note:** {ex['Note']}")
+            st.write(f"**Recupero:** {rec}s  •  **Note Extra:** {ex['Note Extra']}")
+            st.write(f"**Progressione:** {ex['Progressione']}")
 
-                # Timer inline con JavaScript per evitare blocking e aggiungere Stop
-                import streamlit.components.v1 as components
-                timer_id = f"timer_{i}"
-                start_btn = st.button("▶️ Avvia Recupero", key=f"start_{i}")
-                stop_btn = st.button("⏹️ Ferma Recupero", key=f"stop_{i}")
-                # JS snippet con start/stop e stile
-                js = f'''
-                <div id="{timer_id}" style="font-size:24px; font-weight:bold; color:white;">Recupero: {rec}s</div>
-                <script>
-                var total_{timer_id} = {rec};
-                var interval_{timer_id};
-                function start_{timer_id}() {{
-                  if (interval_{timer_id}) return;
-                  interval_{timer_id} = setInterval(function() {{
-                    if (total_{timer_id} <= 0) {{
-                      document.getElementById('{timer_id}').innerText = '✅ Recupero completato!';
-                      clearInterval(interval_{timer_id});
-                      interval_{timer_id} = null;
-                    }} else {{
-                      document.getElementById('{timer_id}').innerText = 'Recupero: ' + total_{timer_id} + 's';
-                      total_{timer_id}--;
-                    }}
-                  }}, 1000);
-                }}
-                function stop_{timer_id}() {{
-                  if (interval_{timer_id}) {{ clearInterval(interval_{timer_id}); interval_{timer_id} = null; }}
-                }}
-                </script>
-                '''
-                if start_btn:
-                    components.html(js + f"<script>start_{timer_id}()</script>", height=80)
-                elif stop_btn:
-                    components.html(f"<script>stop_{timer_id}()</script>", height=10)
-                else:
-                    components.html(js, height=10)
-                    st.write("")
+            if not st.session_state[ex_key]:
+                if st.button("✅ Segna come completato", key=f"comp_{ex_key}"):
+                    st.session_state[ex_key] = True
+                    st.session_state[allen_id].add(i)
+                    st.rerun()
+            else:
+                st.success("Esercizio completato")
 
-                # Input pesi e serie
-                st.number_input("Peso (kg)", key=f"peso_{i}", step=0.5)
-                st.number_input("Serie fatte", key=f"serie_{i}", min_value=0)
-                st.write("---")
+
+            placeholder = st.empty()
+            if st.button("▶️ Avvia Recupero", key=f"timer_{ex_key}"):
+                for sec in range(rec, -1, -1):
+                    placeholder.metric("Tempo rimanente", f"{sec}s")
+                    time.sleep(1)
+                placeholder.success("✅ Recupero completato!")
+
+            # Input pesi e serie
+            st.number_input("Peso (kg)", key=f"peso_{i}", step=0.5)
+            st.number_input("Serie fatte", key=f"serie_{i}", min_value=0)
+            st.write("---")
