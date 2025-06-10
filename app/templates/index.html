@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <h3>Welcome, {{ current_user.username }}!</h3>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category | default('info') }}" role="alert">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    {% if sheet_error %}
+        <div class="alert alert-danger" role="alert">
+            <strong>Error:</strong> {{ sheet_error }}
+        </div>
+    {% endif %}
+
+    {% if current_user.google_sheet_id %}
+        <h4>Your Workout Program</h4>
+        {% if workout_data %}
+            <p>Data from your assigned Google Sheet (ID: {{ current_user.google_sheet_id }}).</p>
+            <p><small>Assumption: Feedback is written to Column H of 'Foglio1'. Headers are in row 1.</small></p>
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped">
+                    <thead>
+                        {% if workout_data[0] %} {# Assume first row is header #}
+                        <tr>
+                            {% for header_cell in workout_data[0] %}
+                            <th>{{ header_cell }}</th>
+                            {% endfor %}
+                            <th>Feedback</th> {# New header for feedback column #}
+                            <th>Action</th>   {# New header for save button #}
+                        </tr>
+                        {% endif %}
+                    </thead>
+                    <tbody>
+                        {# workout_data[0] is header, workout_data[1:] are data_rows #}
+                        {# loop.index0 is 0-based index for data_rows displayed #}
+                        {# Sheet row for data_rows[0] (loop.index0 = 0) is row 2 (1-based in sheet) #}
+                        {# Sheet row for data_rows[i] (loop.index0 = i) is row i+2 #}
+                        {% for data_row in workout_data[1:] %}
+                        <tr>
+                            {% for cell in data_row %}
+                            <td>{{ cell }}</td>
+                            {% endfor %}
+                            {# Fill empty cells if data_row is shorter than header_row, up to assumed feedback column G (index 6) #}
+                            {% set header_len = workout_data[0]|length %}
+                            {% for _ in range(data_row|length, header_len) %}
+                                <td></td> {# Empty cell if data row is shorter than header #}
+                            {% endfor %}
+
+                            {# Feedback column (assuming Column H is next available or designated) #}
+                            {# We need to display existing feedback if column H (index 7 if A=0) was read and exists #}
+                            {# Let's assume G is the last column of program (index 6), H is feedback (index 7) #}
+                            {# If workout_data includes column H, display it. Otherwise, empty input. #}
+                            <form method="POST" action="{{ url_for('main.submit_feedback') }}">
+                                <input type="hidden" name="sheet_row_number" value="{{ loop.index0 + 2 }}"> {# Sheet row is loop index (0-based for data) + 2 (1 for 1-based, 1 for header) #}
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() if csrf_token else '' }}"> {# If using Flask-WTF #}
+                                <td>
+                                    {# Display existing feedback if column H (index 7) was read #}
+                                    {# Assuming the read range A1:G50 might not include H initially. #}
+                                    {# For simplicity, we'll just provide an input. Reading existing feedback from H is an enhancement. #}
+                                    <input type="text" name="feedback_text" class="form-control form-control-sm" placeholder="Your feedback" value="{{ data_row[7] if data_row|length > 7 else '' }}">
+                                </td>
+                                <td>
+                                    <button type="submit" class="btn btn-success btn-sm">Save Feedback</button>
+                                </td>
+                            </form>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elif not sheet_error %}
+            <div class="alert alert-info" role="alert">
+                Your assigned Google Sheet (ID: {{ current_user.google_sheet_id }}) appears to be empty or the program data could not be found in the expected range. Please contact an admin if you believe this is an error.
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            You do not have a workout program assigned yet. Please contact an administrator.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

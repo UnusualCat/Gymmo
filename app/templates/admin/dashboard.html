@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2>Admin Dashboard</h2>
+    <hr>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category | default('info') }}" role="alert">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <h4>Manage User Sheet Assignments</h4>
+    {% if users %}
+    <div class="table-responsive">
+        <table class="table table-striped table-hover">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Currently Assigned Sheet ID</th>
+                    <th>Assign New Sheet</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.username }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.google_sheet_id or 'None' }}</td>
+                    <form method="POST" action="{{ url_for('admin.assign_sheet', user_id=user.id) }}">
+                        <td>
+                            <select name="sheet_id" class="form-control form-control-sm">
+                                <option value="">-- Unassign / Clear --</option>
+                                {% if google_sheets %}
+                                    {% for sheet in google_sheets %}
+                                    <option value="{{ sheet.id }}" {% if sheet.id == user.google_sheet_id %}selected{% endif %}>
+                                        {{ sheet.name }} (ID: {{ sheet.id }})
+                                    </option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="" disabled>No sheets listed from Drive.</option>
+                                {% endif %}
+                            </select>
+                        </td>
+                        <td>
+                            <button type="submit" class="btn btn-primary btn-sm">Save Assignment</button>
+                        </td>
+                    </form>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>No non-admin users found to manage.</p>
+    {% endif %}
+
+    <hr>
+    <h4>Available Google Sheets (from Admin's Drive)</h4>
+    {% if google_sheets is not none and google_sheets %}
+    <ul>
+        {% for sheet in google_sheets %}
+        <li>{{ sheet.name }} (ID: {{ sheet.id }})</li>
+        {% endfor %}
+    </ul>
+    {% elif google_sheets is none %} {# Explicitly check for None, which my service returns on major error #}
+    <p class="text-danger">Error initializing Google Services or loading Google Sheets. Check service account configuration and permissions. See application logs for details.</p>
+    {% else %} {# Empty list, but service was fine #}
+    <p>No Google Sheets (spreadsheets) found in the Admin's Google Drive, or the service account doesn't have access to any. Ensure sheets are shared with the service account email and have the correct MIME type.</p>
+    {% endif %}
+</div>
+{% endblock %}
